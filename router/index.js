@@ -6,20 +6,83 @@ const request     = require('request')
 const fs = require('fs');
 
 router.get('/test',async (ctx, next) => {
+    let {name} = ctx.request.query
     await request({
         method: 'get',
-        uri: 'http://localhost:3300/search?key=%E8%B0%AD%E5%92%8F%E9%BA%9F&pageSize=99',
+        uri: `http://localhost:3300/search?key=${encodeURI(name)}&pageSize=99`,
         json: true//设置返回的数据为json
     },function (error, response, body) {
         if (!error && response.statusCode == 200) {
             const list = body.data.list
-            list.forEach(i => {
-                console.log(i.songmid)
-            })
+            const length = list.length
+            let i = 0
+            console.log(`${name}一共${length}收歌`)
+            downLoadMusic(i,length,list)
+
+            // list.forEach(i => {
+            //     console.log(i.songname +"-"+ i.singer[0].name)
+            //     console.log(i.songmid)
+            // })
         }
     })
+
+    ctx.body  =1
+    
 })
 
+
+
+
+
+
+
+
+function downLoadMusic(i,length,list){
+    if(i < length){
+        const item = list[i]
+        const singerName = item.singer[0].name
+        const name = item.songname +"-"+ singerName
+        console.log(`第${i+1}首歌---${name}`)
+        const songmid = item.songmid
+
+
+        request({
+            method: 'get',
+            uri: `http://localhost:3300/song/url?id=${songmid}`,
+            data:{},
+            json: true//设置返回的数据为json
+        },function (error, response, body) {
+            if (!error && response.statusCode == 200) {
+                if(body.result == 100){
+                    downloadFile(body.data,name,function(){
+                        console.log('下载完毕');
+                        downLoadMusic(i+1,length,list)
+                    })
+                }else{
+                    console.log(`下载失败`)
+                    downLoadMusic(i+1,length,list) 
+                }
+               
+            }
+        })
+    }else{
+        console.log(`${length}首歌下载完毕`)
+    }
+    
+}
+
+function downloadFile(uri,filename,callback){
+    console.log('开始下载');
+    const path = `F:/music/${filename}.mp3`
+    console.log(path)
+    var stream = fs.createWriteStream(path);
+    request(uri).pipe(stream).on('close', callback); 
+}
+
+router.get('/downLoadMusic',async (ctx, next) => {
+    downLoadMusic()
+    ctx = 200
+})
 
 
 router.get('/setQCookie',async (ctx, next) => {
@@ -39,32 +102,5 @@ router.get('/setQCookie',async (ctx, next) => {
     ctx = 'cookie'
 })
 
-
-router.get('/downLoadMusic',async (ctx, next) => {
-    downLoadMusic()
-    ctx = 200
-})
-
-function downLoadMusic(){
-    request({
-        method: 'get',
-        uri: 'http://localhost:3300/song/url?id=0049FHAV06nSRN',
-        data:{},
-        json: true//设置返回的数据为json
-    },function (error, response, body) {
-        if (!error && response.statusCode == 200) {
-            console.log(body.data)
-            downloadFile(body.data,'测试',function(){
-                console.log('下载完毕');
-            })
-        }
-    })
-}
-
-
-function downloadFile(uri,filename,callback){
-    var stream = fs.createWriteStream(`E:/music/${filename}.mp3`);
-    request(uri).pipe(stream).on('close', callback); 
-}
 
 module.exports = router;
